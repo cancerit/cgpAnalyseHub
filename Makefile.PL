@@ -28,7 +28,7 @@ WriteMakefile(
   NAME          => 'cgpAnalyseHub',
   LICENSE       => 'agpl_3', # http://search.cpan.org/~dagolden/CPAN-Meta-2.142690/lib/CPAN/Meta/Spec.pm#license
   VERSION_FROM  => 'lib/Sanger/CGP/AnalyseHub.pm',
-  EXE_FILES     => [qw( )],
+  EXE_FILES     => [qw( bin/cghub_pull.pl )],
   PREREQ_PM     => {
                     'Const::Fast' => 0.014,
                     'Try::Tiny' => 0.19,
