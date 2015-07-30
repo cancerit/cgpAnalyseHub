@@ -92,7 +92,7 @@ sub option_builder {
   pod2usage(-exitval => 0, -verbose => 2) if(defined $opts{'m'});
 
   if(exists $opts{'version'} && defined $opts{'version'}) {
-    print sprintf 'VERSION: %s\n', Sanger::CGP::AnalyseHub->$VERSION;
+    print sprintf "VERSION: %s\n", Sanger::CGP::AnalyseHub->VERSION;
     exit 0;
   }
 
