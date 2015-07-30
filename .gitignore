@@ -18,3 +18,8 @@ nytprof.out
 *.o
 *.bs
 /_eumm/
+
+# added by cancerit
+docs/
+perltidy.LOG
+setup.log
