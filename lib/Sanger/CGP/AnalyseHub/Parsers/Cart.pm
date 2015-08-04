@@ -117,6 +117,7 @@ sub _load {
 
     $total++;
 
+    next if($elements[ $map{'filename'} ] =~ m/_gapfillers_*/);
     next if($elements[ $map{'state'} ] ne 'Live');
     if($elements[ $map{'library_type'} ] ne 'WXS') {
       warn sprintf "Skipping %s as not Exome (WXS)\n", $elements[ $map{'barcode'} ];
