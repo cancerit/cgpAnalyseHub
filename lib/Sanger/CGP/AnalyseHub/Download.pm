@@ -138,7 +138,7 @@ sub is_local {
   my ($self, $base) = @_;
   return $self->{'local'} if(exists $self->{'local'});
   my $success_file = catfile($base, $self->{'dataset'}->orig_dir, '.success');
-warn $success_file;
+
   # checks for presence of success file, it would be inside of the analysis folder
   $self->{'local'} = 0;
   $self->{'local'} = 1 if(-e $success_file);
