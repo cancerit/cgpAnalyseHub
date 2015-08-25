@@ -22,12 +22,13 @@ package Sanger::CGP::AnalyseHub::Download;
 ########## LICENCE ##########
 
 use strict;
-use autodie qw(:all);
+use autodie;
 use warnings FATAL => 'all';
 use Carp qw(croak confess);
 use Const::Fast qw(const);
 use File::Spec::Functions qw(catdir catfile);
 use File::Path qw(make_path);
+use Capture::Tiny qw(capture);
 
 use Data::Dumper;
 
@@ -48,6 +49,12 @@ sub new {
 
   bless $self, $class;
   return $self;
+}
+
+sub debug {
+  my ($self, $val) = @_;
+  $self->{'debug'} = $val if(defined $val);
+  return $self->{'debug'};
 }
 
 sub get {
@@ -83,7 +90,6 @@ sub get {
 
   my $exit = system($download);
 
-  #
   return 0 if($exit && _download_abandoned($err_file));
 
   if($exit) {
@@ -102,7 +108,9 @@ sub get {
 
 sub _download_abandoned {
   my $err_file = shift;
-  my ($g_stdout, $g_stderr, $g_exit) = capture { system( sprintf q{grep -cF 'Inactivity timeout triggered after' %s}, $err_file); };
+  my $command = sprintf q{grep -cF 'Inactivity timeout triggered after' %s}, $err_file;
+  warn "Executing: $command\n";
+  my ($g_stdout, $g_stderr, $g_exit) = capture { system( $command ); };
   chomp $g_stdout;
   if($g_exit == 0 && $g_stdout == 1) {
     warn "Abandoned download due to inactivity, skipping\n";
@@ -112,8 +120,8 @@ sub _download_abandoned {
 }
 
 sub make_links {
-  my ($self, $base) = @_;
-  return 0 if(!$self->is_local);
+  my ($self, $base, $force) = @_;
+  return 0 if(undef $force && !$self->is_local);
   my $source = catfile($base, $self->{'dataset'}->orig_file);
   unless(-e $source) {
     warn "SKIP: Data indicated local but unable to find $source\n";
@@ -128,6 +136,7 @@ sub make_links {
   make_path($link_base) unless(-e $link_base);
 
   my $link = catfile($base, $self->{'dataset'}->link_file);
+  $link =~ s/_HOLD_QC_PENDING$//; # there's some real crud in there
   symlink($source, $link) unless(-e $link);
   symlink("$source.bai", "$link.bai") unless(-e "$link.bai");
 
@@ -141,7 +150,13 @@ sub is_local {
 
   # checks for presence of success file, it would be inside of the analysis folder
   $self->{'local'} = 0;
-  $self->{'local'} = 1 if(-e $success_file);
+  if(-e $success_file) {
+    if($self->debug) {
+      warn "Data already available: $success_file\n";
+      warn sprintf "Link: %s\n", catfile($base, $self->{'dataset'}->link_file);
+    }
+    $self->{'local'} = 1;
+  }
   return $self->{'local'};
 }
 
