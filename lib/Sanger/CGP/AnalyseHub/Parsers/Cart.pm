@@ -230,6 +230,7 @@ sub clean_set {
 
 
         for my $sample_id(keys %{$participant}) {
+          next if($participant->{$sample_id}->[0]->{'simple_type'} eq 'normal');
           $final_samples->{$sample_id} = _get_largest($participant->{$sample_id});
         }
 
