@@ -9,7 +9,7 @@ To do this it utilises the CGHub cart summary file and arranges data in a unifor
 
 Code is also included to simplify bulk generation of commands and helper scripts for farm submissions if his facility is available to you.
 
-## Non-Hub data
+### Non-Hub data
 
 It is not necessary for data to be sourced from CGHub, the subsequent callers and helper code can be used
 with any paired WXS data (tumour/normal) provided data is arranged in an expected format.  This is detailed
@@ -34,11 +34,11 @@ most are listed in `INSTALL`.
 
 If you wish to use the callers and not just the download facility you will also need to install:
 
-[cgpVcf](http://cancerit.github.io/cgpVcf/)
-[cgpPindel](http://cancerit.github.io/cgpPindel/)
-[Vagrent](http://cancerit.github.io/VAGrENT/)
-[cgpCaVEManPostProcessing](http://cancerit.github.io/cgpCaVEManPostProcessing/)
-[cgpCaVEManWrapper](http://cancerit.github.io/cgpCaVEManWrapper/)
+* [cgpVcf](http://cancerit.github.io/cgpVcf/)
+* [cgpPindel](http://cancerit.github.io/cgpPindel/)
+* [Vagrent](http://cancerit.github.io/VAGrENT/)
+* [cgpCaVEManPostProcessing](http://cancerit.github.io/cgpCaVEManPostProcessing/)
+* [cgpCaVEManWrapper](http://cancerit.github.io/cgpCaVEManWrapper/)
 
 ---
 
