@@ -1,7 +1,7 @@
 cgpAnalyseHub
 =========
 
-cgpAnalyseHub Has been created to try and simplify bulk retrieval of data from CGHub, remapping
+cgpAnalyseHub has been created to try and simplify bulk retrieval of data from CGHub, remapping
 through BWA-mem and analysis using the CGP variant calling algoritms [CaVEMan](http://cancerit.github.io/CaVEMan/)
 and [cgpPindel](http://cancerit.github.io/cgpPindel/) followed by annotation using [Vagrent](http://cancerit.github.io/VAGrENT/).
 
