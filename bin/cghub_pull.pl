@@ -46,11 +46,27 @@ const my $CGHUB_BASE => 'https://cghub.ucsc.edu/cghub/metadata/analysisFull';
   my $layout = Sanger::CGP::AnalyseHub::Layout->new($cart); # as different cart types may be necessary
 
   if($options->{'info'}) {
+    my %project;
+    my $max_key_len = 0;
     my $total_local = 0;
     while (my $set = $layout->next_part_set) {
+      my $key = $set->[0]->{'study'}.'-'.$set->[0]->{'disease'};
+      my $key_len = length($key);
+      $max_key_len = $key_len if($key_len > $max_key_len);
+      $project{ $key } ++;
       $total_local += local_count($set, $options);
     }
-    warn sprintf "%d files already local\n", $total_local;
+
+    warn "\nDonor distribution\n";
+    for my $key(sort keys %project) {
+      my $form_key = $key;
+      my $key_diff = $max_key_len - length $key;
+      $form_key .= q{ } x $key_diff if($key_diff);
+      print sprintf "\t%s\t%d\n", $form_key, $project{$key};
+    }
+
+    warn sprintf "\n%d files already local\n", $total_local;
+
     exit 0;
   }
 
