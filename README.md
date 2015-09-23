@@ -7,7 +7,7 @@ and [cgpPindel](http://cancerit.github.io/cgpPindel/) followed by annotation usi
 
 To do this it utilises the CGHub cart summary file and arranges data in a uniform manner.
 
-Code is also included to simplify bulk generation of commands and helper scripts for farm submissions if his facility is available to you.
+Code is also included to simplify bulk generation of commands and helper scripts for farm submissions if this facility is available to you.
 
 ### Non-Hub data
 
