@@ -19,9 +19,6 @@ const my $PINDEL => q{pindel.pl -st WXS -as GRCh37 -sp Human -e NC_007605,hs37d5
 const my $CAVEMAN => q{caveman.pl -tc cn_tum.bed -nc cn_norm.bed -td 5 -nd 2 -t %d -r %s/genome.fa.fai -ig %s/caveman/ucscHiDepth_0.01_merge1000_no_exon.bed -b %s/caveman/flagging/ -u %s/caveman/unmatched -ab %s -s HUMAN -sa hs37d5 -st pulldown -np WXS -tp WXS -in empty.bed -nb %s -tb %s -o %s};
 const my $VAGRENT => q{AnnotateVcf.pl -t -c %s -i %s -o %s};
 
-my ($base_path, $alg, @alg_args) = @ARGV;
-
-
 my %find_dispatch = ( mapping => \&bwa_find,
                       pindel => \&compare_find,
                       caveman => \&compare_find,
@@ -41,6 +38,8 @@ my %paired_algs = ( mapping => 1, # no point mapping data if unmatched
                     annot => 0,   # annotation only needs a tumour result (as it is a comparison)
                     );
 
+
+my ($base_path, $alg, @alg_args) = @ARGV;
 
 my %donors; # this is global, be careful
 file_list($alg, $base_path);
