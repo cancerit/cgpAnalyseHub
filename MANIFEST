@@ -1,4 +1,6 @@
 bin/cghub_pull.pl
+bin/farm_idx_exec.pl
+bin/tcga_matchList.pl
 Changes.md
 docs.tar.gz
 docs/pod_html/_blkbluw.css
