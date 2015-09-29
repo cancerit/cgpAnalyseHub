@@ -1,13 +1,16 @@
 cgpAnalyseHub
 =========
 
-cgpAnalyseHub has been created to try and simplify bulk retrieval of data from CGHub, remapping
+cgpAnalyseHub has been created to try and simplify bulk retrieval of data from [CGHub](https://cghub.ucsc.edu/), remapping
 through BWA-mem and analysis using the CGP variant calling algoritms [CaVEMan](http://cancerit.github.io/CaVEMan/)
 and [cgpPindel](http://cancerit.github.io/cgpPindel/) followed by annotation using [Vagrent](http://cancerit.github.io/VAGrENT/).
 
-To do this it utilises the CGHub cart summary file and arranges data in a uniform manner.
+To do this it utilises the [CGHub cart](https://browser.cghub.ucsc.edu/search/) summary file and arranges data in a uniform manner.
+
+To download data from CGHub you will need to apply for access directly with the administrators of the resource, we are not able to help you with this process.
 
 Code is also included to simplify bulk generation of commands and helper scripts for farm submissions if this facility is available to you.
+A reasonable understanding of linux and your compute infrastructure is required.
 
 ### Non-Hub data
 
@@ -23,16 +26,18 @@ Please install the following first:
 
 * [PCAP-core](http://github.com/ICGC-TCGA-PanCancer/PCAP-core/releases)
 
-Please see these for any child dependencies.
+Please see this for any child dependencies.
 
 Once complete please run:
 
 ./setup.sh /some/install/location
 
-Please be aware that this expects basic C compilation libraries and tools to be available,
-most are listed in `INSTALL`.
+Note: The environment `PERL5LIB` variable is modified to only use libraries installed under the specified path,
+please ensure that all items are installed to the same area.
 
-If you wish to use the callers and not just the download facility you will also need to install:
+To use the download functionality you will need to ensure that [genetorrent](https://cghub.ucsc.edu/software/downloads.html) is installed and available in your path environment.
+
+If you wish to use the callers and not just the download facility you also need to install the following tools:
 
 * [cgpVcf](http://cancerit.github.io/cgpVcf/)
 * [cgpPindel](http://cancerit.github.io/cgpPindel/)
@@ -41,7 +46,6 @@ If you wish to use the callers and not just the download facility you will also 
 * [cgpCaVEManWrapper](http://cancerit.github.io/cgpCaVEManWrapper/)
 
 ---
-
 
 ## Developer info
 

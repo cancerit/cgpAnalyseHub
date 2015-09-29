@@ -146,7 +146,7 @@ rm -rf $SETUP_DIR
 
 echo
 echo
-echo "Please add the following to beginning of path:"
+echo "Please add the following to beginning of PATH:"
 echo "  $INST_PATH/bin"
 echo "Please add the following to beginning of PERL5LIB:"
 echo "  $PERLROOT"
