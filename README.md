@@ -1,17 +1,22 @@
-
-
-cgpPindel
+cgpAnalyseHub
 =========
 
-cgpPindel contains the Cancer Genome Projects workflow for [pindel](http://gmt.genome.wustl.edu/pindel/current/).
+cgpAnalyseHub has been created to try and simplify bulk retrieval of data from [CGHub](https://cghub.ucsc.edu/), remapping
+through BWA-mem and analysis using the CGP variant calling algoritms [CaVEMan](http://cancerit.github.io/CaVEMan/)
+and [cgpPindel](http://cancerit.github.io/cgpPindel/) followed by annotation using [Vagrent](http://cancerit.github.io/VAGrENT/).
 
-The is a lightly modified version of pindel v2.0 with CGP specific processing for:
+To do this it utilises the [CGHub cart](https://browser.cghub.ucsc.edu/search/) summary file and arranges data in a uniform manner.
 
-* Input file generation
-* Conversion from pindel text output to:
-    * tumour and normal BAM alignment files
-    * VCF
-    * Application of VCF filters.
+To download data from CGHub you will need to apply for access directly with the administrators of the resource, we are not able to help you with this process.
+
+Code is also included to simplify bulk generation of commands and helper scripts for farm submissions if this facility is available to you.
+A reasonable understanding of linux and your compute infrastructure is required.
+
+### Non-Hub data
+
+It is not necessary for data to be sourced from CGHub, the subsequent callers and helper code can be used
+with any paired WXS data (tumour/normal) provided data is arranged in an expected format.  This is detailed
+in the [wiki pages](../../wiki).
 
 ---
 
@@ -20,16 +25,25 @@ The is a lightly modified version of pindel v2.0 with CGP specific processing fo
 Please install the following first:
 
 * [PCAP-core](http://github.com/ICGC-TCGA-PanCancer/PCAP-core/releases)
-* [cgpVcf](http://github.com/cancerit/cgpVcf/releases)
 
-Please see these for any child dependencies.
+Please see this for any child dependencies.
 
 Once complete please run:
 
 ./setup.sh /some/install/location
 
-Please be aware that this expects basic C compilation libraries and tools to be available,
-most are listed in `INSTALL`.
+Note: The environment `PERL5LIB` variable is modified to only use libraries installed under the specified path,
+please ensure that all items are installed to the same area.
+
+To use the download functionality you will need to ensure that [genetorrent](https://cghub.ucsc.edu/software/downloads.html) is installed and available in your path environment.
+
+If you wish to use the callers and not just the download facility you also need to install the following tools:
+
+* [cgpVcf](http://cancerit.github.io/cgpVcf/)
+* [cgpPindel](http://cancerit.github.io/cgpPindel/)
+* [Vagrent](http://cancerit.github.io/VAGrENT/)
+* [cgpCaVEManPostProcessing](http://cancerit.github.io/cgpCaVEManPostProcessing/)
+* [cgpCaVEManWrapper](http://cancerit.github.io/cgpCaVEManWrapper/)
 
 ---
 
@@ -53,9 +67,9 @@ Copyright (c) 2015 Genome Research Ltd.
 
 Author: Cancer Genome Project <cgpit@sanger.ac.uk>
 
-This file is part of cgpPindel.
+This file is part of cgpAnalyseHub.
 
-cgpPindel is free software: you can redistribute it and/or modify it under
+cgpAnalyseHub is free software: you can redistribute it and/or modify it under
 the terms of the GNU Affero General Public License as published by the Free
 Software Foundation; either version 3 of the License, or (at your option) any
 later version.

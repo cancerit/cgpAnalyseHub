@@ -22,10 +22,11 @@ package Sanger::CGP::AnalyseHub::Parsers::Cart;
 ########## LICENCE ##########
 
 use strict;
-use autodie qw(:all);
+use autodie;
 use warnings FATAL => 'all';
 use Carp qw(croak confess);
 use Const::Fast qw(const);
+use List::Util qw(any);
 
 use Data::Dumper;
 
@@ -33,16 +34,16 @@ use Sanger::CGP::AnalyseHub; # import version info
 use Sanger::CGP::AnalyseHub::Parsers::Metadata;
 
 # constants for required fields etc.
-const my @REQ_HEADERS => qw (study assembly analysis_id barcode disease library_type platform participant_id state barcode filename files_size);
+const my @REQ_HEADERS => qw (study sample_type assembly analysis_id sample_id barcode disease library_type platform participant_id state filename files_size);
 const my @OPT_HEADERS => qw ();
 const my $BC_REGEX => qr/[^\-]+\-[^\-]+\-[^\-]+\-([[:digit:]]{2})[A-Z]\-([[:digit:]]{2})[A-Z](?:\-[^\-]+\-[^\-]+)?/;
 
 sub new {
-  my ($class, $summary_file, $assembly, $verbose) = @_;
+  my ($class, $summary_file, $normtiss, $assembly, $bad, $verbose) = @_;
   my $self = {};
   bless $self, $class;
   $self->set_verbose($verbose);
-  $self->_init($summary_file, $assembly);
+  $self->_init($summary_file, $normtiss, $assembly, $bad);
   return $self;
 }
 
@@ -65,12 +66,32 @@ sub verbose {
 }
 
 sub _init {
-  my ($self, $summary_file, $assembly) = @_;
+  my ($self, $summary_file, $normtiss, $assembly, $bad) = @_;
+  $self->_load_exclude($bad);
   croak "ERROR: File $summary_file does not exist\n" if(!-e $summary_file);
   croak "ERROR: File $summary_file is empty\n" if(-s _ == 0);
   $self->{'summary_file'} = $summary_file;
   $self->{'assembly'} = $assembly;
+  $self->{'normtiss'} = defined $normtiss ? 1 : 0;
   $self->_parse_file();
+}
+
+sub _load_exclude {
+  my ($self, $bad) = @_;
+  my @exclude;
+  $self->{'_exclude'} = \@exclude;
+  if(defined $bad && -e $bad && -s $bad) {
+    open my $EX, '<', $bad;
+    while(my $line = <$EX>) {
+      chomp $line;
+      $line =~ s/^[[:space:]]+([^[:space:]]+)[[:space:]]+$/$1/;
+      next if($line eq q{});
+      next if($line =~ m/^#/);
+      push @exclude, $line;
+    }
+    close $EX;
+  }
+  return 1;
 }
 
 sub _parse_file {
@@ -94,6 +115,7 @@ sub _load {
   my ($self, $FH) = @_;
   my $total = 0;
   my %map = %{$self->{'_header_map'}};
+  my @exclude_analysis_ids = @{$self->{'_exclude'}};
   my %studies;
   while(my $line = <$FH>) {
     chomp $line;
@@ -120,9 +142,10 @@ sub _load {
     next if($elements[ $map{'filename'} ] =~ m/_gapfillers_*/);
     next if($elements[ $map{'state'} ] ne 'Live');
     if($elements[ $map{'library_type'} ] ne 'WXS') {
-      warn sprintf "Skipping %s as not Exome (WXS)\n", $elements[ $map{'barcode'} ];
+      warn sprintf "Skipping analysis_id %s as not Exome (WXS)\n", $elements[ $map{'analysis_id'} ];
       next;
     }
+    next if( any { $elements[ $map{'analysis_id'} ] eq $_ } @exclude_analysis_ids);
 
     my $record = $self->_convert_record($self->{'assembly'}, \@elements, \%map);
     next unless(defined $record);
@@ -130,13 +153,42 @@ sub _load {
     push @{$studies{$record->{'study'}}
             {$record->{'disease'}}
               {$record->{'participant_id'}}
-                {$record->{'barcode'}}
+                {$record->{'sample_id'}}
           }, $record;
   }
 
   $self->clean_set(\%studies);
   $self->{'total'} = $total;
   return 1;
+}
+
+sub _clean_normals {
+  my ($use_tissue_normal, $normals) = @_;
+  my $wanted = 'NB';
+  $wanted = 'NT' if($use_tissue_normal);
+  my %class;
+  for my $rec( @{$normals} ) {
+    my $this_class = $rec->{'sample_type'};
+    $this_class = 'other' if($this_class ne $wanted);
+    push @{$class{ $this_class }}, $rec;
+  }
+  my $to_keep;
+  if(exists $class{$wanted}) {
+    $to_keep = _get_largest($class{$wanted});
+  }
+  else {
+    $to_keep = _get_largest($class{'other'});
+  }
+  return $to_keep;
+}
+
+sub _get_largest {
+  my ($refs) = @_;
+  my $largest = $refs->[0];
+  for my $rec(@{$refs}) {
+    $largest = $rec if($rec->{'files_size'} > $largest->{'files_size'});
+  }
+  return $largest;
 }
 
 sub clean_set {
@@ -148,116 +200,53 @@ sub clean_set {
     my $study_retained = 0;
     for my $disease(keys %{$set->{$study}}) {
       my $disease_retained = 0;
+
       for my $partid(keys %{$set->{$study}->{$disease}}) {
+        my $final_samples;
+
+
         my $remove = 0;
         my $participant = $set->{$study}->{$disease}->{$partid};
+        delete $set->{$study}->{$disease}->{$partid};
         # participant must have multiple types
 
         my %types;
         # inefficient to loop here, but can quickly discount the rest of this block if no normal or tumour
-        for my $barcode(keys %{$participant}) {
-          my $barcode_warned = 0;
-          my @records = @{ $participant->{$barcode} };
+        for my $sample_id(keys %{$participant}) {
+          my @records = @{ $participant->{$sample_id} };
           for my $record(@records) {
             my $type = $self->type_from_barcode($record->{'barcode'});
             $record->{'simple_type'} = $type;
-            $types{ $type }++;
+            push @{$types{ $type }}, $record;
           }
         }
 
         if(!exists $types{'tumour'} || !exists $types{'normal'}) {
-          delete $set->{$study}->{$disease}->{$partid};
           next;
         }
 
+        my $normal = _clean_normals($self->{'normtiss'}, $types{'normal'});
+        $final_samples->{$normal->{'sample_id'}} = $normal;
 
-        for my $barcode(keys %{$participant}) {
-          my $barcode_warned = 0;
-          my @records = @{ $participant->{$barcode} };
 
-          if(@records > 1) {
-            my %assemblies;
-            for my $analysis(@records) {
-              push @{$assemblies{$analysis->{'assembly'}}}, $analysis;
-            }
-            if(exists $assemblies{'GRCh37-lite'} && (scalar @{$assemblies{'GRCh37-lite'}}) == 1) {
-              $participant->{$barcode} = $assemblies{'GRCh37-lite'}->[0];
-            }
-            elsif(exists $assemblies{'HG19_Broad_variant'} && (scalar @{$assemblies{'HG19_Broad_variant'}}) == 1) {
-              $participant->{$barcode} = $assemblies{'HG19_Broad_variant'}->[0];
-            }
-            else {
-              my $largest;
-              my @rg_sets;
-              for my $analysis(@records) {
-                push @{$assemblies{$analysis->{'assembly'}}}, $analysis;
-                push @rg_sets, Sanger::CGP::AnalyseHub::Parsers::Metadata::platform_library($analysis);
-                if(defined $largest) {
-                  $largest = $analysis if($analysis->{'files_size'} > $largest->{'files_size'});
-                }
-                else {
-                  $largest = $analysis
-                }
-              }
-
-              ######
-              # This cleans out ambiguous data sets
-              my %query_same;
-              for my $rgs(@rg_sets) {
-                for my $rg(@{$rgs}) {
-                  my $chk_str = $rg->{'assembly'}.':'.$rg->{'LB'}.':'.$rg->{'PU'};
-                  push @{$query_same{$chk_str}}, $rg->{'analysis_id'};
-                }
-              }
-              my $analysis_count = scalar @rg_sets;
-              for my $chks(sort keys %query_same) {
-                if((scalar @{$query_same{$chks}}) == $analysis_count) {
-                  print "select largest for $barcode\n";
-                  $participant->{$barcode} = $largest;
-                }
-                else {
-                  unless($barcode_warned) {
-                    my $error = "Duplicate data for barcode: $records[0]->{barcode}, ambiguous data for\n\tanalysis_ids:";
-                    for my $r(@records) {
-                      $error .= "\n\t\t".$r->{'analysis_id'};
-                    }
-                    $error .= "\n\tRespecitive filenames:";
-                    for my $r(@records) {
-                      $error .= sprintf "\n\t\t%s (%s)",$r->{'filename'},$r->{'assembly'};
-                    }
-                    $error .= "\n\n";
-
-                    warn $error;
-                    $barcode_warned++;
-
-                  }
-                  $remove++;
-                }
-              }
-            }
-            #
-            ######
-
-          }
-          else {
-            $participant->{$barcode} = $records[0];
-          }
+        for my $sample_id(keys %{$participant}) {
+          next if($participant->{$sample_id}->[0]->{'simple_type'} eq 'normal');
+          $final_samples->{$sample_id} = _get_largest($participant->{$sample_id});
         }
 
-        if($remove != 0) {
-          delete $set->{$study}->{$disease}->{$partid};
-          next;
-        }
+        $set->{$study}->{$disease}->{$partid} = $final_samples;
+
         $retained++;
         $study_retained++;
         $disease_retained++;
-        push @iterator, $participant;
+        push @iterator, $final_samples;
         $tumour_retained += (scalar (keys $participant)) - 1;
       }
       delete $set->{$study}->{$disease} if($disease_retained == 0);
     }
     delete $set->{$study} if($study_retained == 0);
   }
+
   $self->{'participants'} = $retained;
   $self->{'tumours'} = $tumour_retained;
   $self->{'_part_list'} = \@iterator;
@@ -269,15 +258,15 @@ sub _largest_data {
   my ($self, $set) = @_;
   my @new_set;
   # Need to group by bc first then keep largest of each
-  my %by_bc;
+  my %by_sample_id;
   for(@{$set}) {
-    push @{$by_bc{$_->{'barcode'}}}, $_;
+    push @{$by_sample_id{$_->{'sample_id'}}}, $_;
   }
 
-  for my $bc(keys %by_bc) {
-    my $bc_set = $by_bc{$bc};
-    my $largest = shift @{$bc_set};
-    for my $t(@{$bc_set}) {
+  for my $sample_id(keys %by_sample_id) {
+    my $samp_set = $by_sample_id{$sample_id};
+    my $largest = shift @{$samp_set};
+    for my $t(@{$samp_set}) {
       $largest = $t if($t->{'files_size'} > $largest->{'files_size'});
     }
     push @new_set, $largest;
@@ -310,12 +299,15 @@ sub total_size {
     confess "total_size can only be used after data has been parsed." unless(defined $set);
     my $size = 0;
     for my $participant(@{$set}) {
-      for my $bc(keys $participant) {
-if(ref $participant->{$bc} ne 'HASH') {
-  warn Dumper($participant->{$bc});
-  exit;
+      for my $sample_id(keys $participant) {
+
+
+if(ref $participant->{$sample_id} ne 'HASH') {
+  warn Dumper($participant->{$sample_id});
+  next;
 }
-        $size += $participant->{$bc}->{'files_size'};
+
+        $size += $participant->{$sample_id}->{'files_size'};
       }
     }
     $self->{'total_size'} = $size;
@@ -342,12 +334,12 @@ sub _convert_record {
     $by_col{$col_name} = $val;
   }
 
-  return $valid if( $by_col{'filename'} =~ m/_IlluminaGA-DNASeq_exome.bam$/);
+  #HOLD_QC_PENDING, confirmed by cghub that these are good datasets
   return $valid if( $by_col{'filename'} =~ m/_capture.bam$/);
 
-#  if($by_col{'filename'} ne $by_col{'checksum'}.'.bam' && $by_col{'filename'} ne $by_col{'barcode'}.'.bam') {
-#    warn $by_col{'filename'};
-#  }
+
+#return $valid if( $by_col{'participant_id'} ne 'e3b6018c-ab2c-47c5-b183-a295d0110835');
+
 
   $valid = \%by_col;
   return $valid;

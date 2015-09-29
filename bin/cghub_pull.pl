@@ -10,6 +10,8 @@ use Pod::Usage;
 use Const::Fast qw(const);
 use File::Which qw(which);
 
+use threads;
+
 use Data::Dumper;
 
 use PCAP::Cli;
@@ -23,31 +25,102 @@ const my $CGHUB_BASE => 'https://cghub.ucsc.edu/cghub/metadata/analysisFull';
 {
   my $options = option_builder();
   gtdl_setup($options);
-  my $cart = Sanger::CGP::AnalyseHub::Parsers::Cart->new($options->{'summary'}, $options->{'assembly'});
+  my $cart = Sanger::CGP::AnalyseHub::Parsers::Cart->new( $options->{'summary'},
+                                                          $options->{'normtiss'},
+                                                          $options->{'assembly'},
+                                                          $options->{'bad'});
+
+
+#die Dumper($cart);
 
   my $donors = $cart->participants;
   my $gb = $cart->total_size_gb;
-  my $gb_p_donor = $gb / $donors;
+  my $gb_p_donor = 0;
+  $gb_p_donor = $gb / $donors if($donors);
 
   warn sprintf "%d donors\n", $donors;
   warn sprintf "%d tumours\n", $cart->tumours;
   warn sprintf "%.2f GB per donor\n", $gb_p_donor;
   warn sprintf "%.2f TB data total\n", $gb / 1024;
 
-  exit 0 if($options->{'info'});
-
   my $layout = Sanger::CGP::AnalyseHub::Layout->new($cart); # as different cart types may be necessary
 
-  while (my $set = $layout->next_part_set) {
-    for my $ds(@{$set}) {
-      my $dl = Sanger::CGP::AnalyseHub::Download->new( dataset => $ds,
-                                                       keyfile => $options->{'key'},
-                                                       gtdownload => $options->{'gtdownload'},
-                                                       proxy => $options->{'proxyon'});
-      $dl->get($options->{'outdir'});
+  if($options->{'info'}) {
+    my %project;
+    my $max_key_len = 0;
+    my $total_local = 0;
+    while (my $set = $layout->next_part_set) {
+      my $key = $set->[0]->{'study'}.'-'.$set->[0]->{'disease'};
+      my $key_len = length($key);
+      $max_key_len = $key_len if($key_len > $max_key_len);
+      $project{ $key } ++;
+      $total_local += local_count($set, $options);
     }
+
+    warn "\nDonor distribution\n";
+    for my $key(sort keys %project) {
+      my $form_key = $key;
+      my $key_diff = $max_key_len - length $key;
+      $form_key .= q{ } x $key_diff if($key_diff);
+      print sprintf "\t%s\t%d\n", $form_key, $project{$key};
+    }
+
+    warn sprintf "\n%d files already local\n", $total_local;
+
+    exit 0;
   }
 
+  my $thread_count = $options->{'threads'} || 1;
+
+  if($thread_count == 1) {
+    while (my $set = $layout->next_part_set) {
+      download($set, $options);
+    }
+  }
+  else {
+    while (my $set = $layout->next_part_set) {
+      if(threads->list(threads::all) < $thread_count) {
+        threads->create(\&download, $set, $options);
+        next if(threads->list(threads::all) < $thread_count);
+      }
+      sleep 10 while(threads->list(threads::joinable) == 0);
+      for my $thr(threads->list(threads::joinable)) {
+        $thr->join;
+        if(my $err = $thr->error) { die "Thread error: $err\n"; }
+      }
+    }
+    sleep 10 while(threads->list(threads::running) > 0);
+    for my $thr(threads->list(threads::joinable)) {
+      $thr->join;
+      if(my $err = $thr->error) { die "Thread error: $err\n"; }
+    }
+  }
+}
+
+sub local_count {
+  my ($set, $options) = @_;
+  my $local = 0;
+  for my $ds(@{$set}) {
+    my $dl = Sanger::CGP::AnalyseHub::Download->new( dataset => $ds,
+                                                     keyfile => $options->{'key'},
+                                                     gtdownload => $options->{'gtdownload'},
+                                                     proxy => $options->{'proxyon'});
+    $dl->debug($options->{'debug'});
+    $dl->make_links($options->{'outdir'}, 1) if($options->{'symlinks'});
+    $local++ if($dl->is_local($options->{'outdir'}));
+  }
+  return $local;
+}
+
+sub download {
+  my ($set, $options) = @_;
+  for my $ds(@{$set}) {
+    my $dl = Sanger::CGP::AnalyseHub::Download->new( dataset => $ds,
+                                                     keyfile => $options->{'key'},
+                                                     gtdownload => $options->{'gtdownload'},
+                                                     proxy => $options->{'proxyon'});
+    $dl->get($options->{'outdir'});
+  }
 }
 
 sub gtdl_setup {
@@ -76,11 +149,12 @@ sub option_builder {
 		'm|man' => \$opts{'m'},
 		'i|info' => \$opts{'info'},
 		'y|symlinks' => \$opts{'symlinks'},
+  	'n|normtiss' => \$opts{'normtiss'},
+		'b|bad=s' => \$opts{'bad'},
 		'a|assembly=s' => \$opts{'assembly'},
 		's|summary=s' => \$opts{'summary'},
 		'g|gtbin=s' => \$opts{'gtbin'},
 		'k|key=s' => \$opts{'key'},
-		'u|url=s' => \$opts{'url'},
 		't|threads=i' => \$opts{'threads'},
 		'o|outdir=s' => \$opts{'outdir'},
 		'd|debug' => \$opts{'debug'},
@@ -120,13 +194,17 @@ gnos_pull.pl - retrieve/update analysis flow results on local systems.
 
     --summary   (-s)  Summary TSV file from CGHub cart download.
 
-    --assembly  (-a)  Which assembly data to use.
-
     --outdir    (-o)  Where to save downloads.
+
+    --key       (-k)  Required for actual downloads.
 
   Other options:
 
-    --key       (-k)  Required for actual downloads.
+    --assembly  (-a)  Which assembly data to use.
+
+    --normtiss  (-n)  Presence indicates normal tissue in preference to blood.
+
+    --bad       (-b)  File listing analysis_ids for known bad data.
 
     --gtbin     (-g)  Specify gtdownload bin directory (default environment)
 
@@ -135,9 +213,6 @@ gnos_pull.pl - retrieve/update analysis flow results on local systems.
     --symlinks  (-y)  Rebuild symlinks only
 
     --threads   (-t)  Number of parallel GNOS retrievals.
-
-    --url       (-u)  The base URL to retrieve jsonl file from
-                        [http://pancancer.info/gnos_metadata/latest/]
 
     --info      (-i)  Just prints how many donor's will be included in pull and some stats.
 
